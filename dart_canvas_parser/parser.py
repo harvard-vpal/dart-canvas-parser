@@ -3,9 +3,7 @@ import json
 import uuid
 
 from canvas_sdk.exceptions import InvalidOAuthTokenError
-
-from canvas_adapter.models import CanvasUser
-from canvas_api import get_all_courses, get_pages, get_quizzes
+from canvas_api import CanvasApi
 from dart_common.adapter_utils import strip_html
 from dart_sdk.models.canvas_asset import CanvasAsset
 from dart_sdk.models.canvas_collection import CanvasCollection
@@ -20,35 +18,32 @@ log = logging.getLogger('dart')
 
 
 class CanvasParser(object):
-    def __init__(self, content_source):
+    def __init__(self, content_source, url_base, api_token):
         self.content_source = content_source
         self.content_license = content_source.default_license
         self.errors = []
         self.warnings = []
         self.assets = []
         self.collections = []
-        self.user_model = CanvasUser.objects.get(
-            user_uid=content_source.user_uid
-        )
+        self.canvas_api = CanvasApi(url_base, api_token)
 
-    def parse(self):
-        try:
-            for course in get_all_courses(self.user_model):
-                course_assets = []
-                course_assets += self._get_page_assets(course['id'])
-                course_assets += self._get_quiz_assets(course['id'])
-                self._get_course_collection(course, course_assets)
-        except InvalidOAuthTokenError:
-            model = CanvasUser.objects.get(
-                user_uid=self.content_source.user_uid
-            )
-            model.api_token = None
-            model.save()
+    def parse(self, course_ids):
+        """
+        Parse canvas courses specified by course_ids list
+        Arguments:
+            course_ids (list): list of canvas course ids, e.g. [5013]
+        """
+        for course_id in course_ids:
+            course = self.canvas_api.get_course(course_id)
+            course_assets = []
+            course_assets += self._get_page_assets(course['id'])
+            course_assets += self._get_quiz_assets(course['id'])
+            self._get_course_collection(course, course_assets)
         return self._get_export_data()
 
     def _get_page_assets(self, course_id):
         assets = []
-        pages = get_pages(self.user_model, course_id)
+        pages = self.canvas_api.get_pages(course_id)
         for page in pages:
             uid = unicode(uuid.uuid4())
             if 'last_edited_by' in page and 'display_name' in page[
@@ -87,7 +82,7 @@ class CanvasParser(object):
                     uid=uid,
                     description=page['title'] if page[
                         'title'] else 'Canvas Page',
-                    duration=None,
+                    # duration=None,
                 ),
                 search_text=body,
                 original_content=page['body'],
@@ -100,7 +95,7 @@ class CanvasParser(object):
 
     def _get_quiz_assets(self, course_id):
         assets = []
-        quizzes = get_quizzes(self.user_model, course_id)
+        quizzes = self.canvas_api.get_quizzes(course_id)
         for quiz in quizzes:
             uid = unicode(uuid.uuid4())
             assets.append(ExtendedAsset(
@@ -123,7 +118,7 @@ class CanvasParser(object):
                     uid=uid,
                     description=quiz['description'] if quiz[
                         'description'] else 'Canvas Quiz',
-                    duration=None,
+                    # duration=None,
                 ),
                 search_text=_get_quiz_search_text(quiz),
                 original_content=json.dumps(quiz),
