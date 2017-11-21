@@ -1,5 +1,4 @@
 # example for using dart_canvas_parser package
-from collections import namedtuple
 from dart_canvas_parser.parser import CanvasParser
 from dart_sdk.models.canvas_content_source import CanvasContentSource
 
