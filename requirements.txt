@@ -1,3 +1,6 @@
+# shared dependencies
+future
+
 dart-sdk
 dart-common
 git+ssh://git@github.com/penzance/canvas_python_sdk#egg=canvas_sdk
